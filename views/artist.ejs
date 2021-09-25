@@ -1,0 +1,16 @@
+<%- include("partials/header"); -%>
+
+<body>    
+    
+    <h1 id="search-results-h2"><%=artistInfo[index].artistName%></h1>
+
+        <div class="artist-hero-section">
+            <img src="<%=artistInfo[index].image.url%>" alt="">
+            <h1><span><%=artistInfo[index].followers%></span> Currently following</h1>
+
+            <% topTracks.forEach(function(track){ %>
+                <p><%=track.trackName%>, <%=track.albumName%></p>
+            <% }) %>
+        </div>
+  </body>
+</html>

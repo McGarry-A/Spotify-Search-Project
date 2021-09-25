@@ -1,0 +1,12 @@
+<%- include('partials/header') %>
+<div class="play-container">
+<div class="col1">
+<h2 id="play-h2"><%=searchResults[i].trackName%></h2>
+<p id="play-p">Album: <%=searchResults[i].albumName%>, Artist: 
+    <%=searchResults[i].artistName%></p>
+<img id="play-image" src="<%=searchResults[i].albumImageUrl%>">
+</div>
+<div class="col2">
+<iframe id="play-iframe" src="https://open.spotify.com/embed/album/<%=searchResults[i].albumUri%>" width="500" height="380" frameborder="1" allowtransparency="true" allow="encrypted-media"></iframe>
+</div>
+</div>
