@@ -116,3 +116,55 @@ body {
     background-color: grey;
     text-align: center;
   }
+
+  /* !!!!!!!!!!!! */
+  #artist-page-body{
+    height: 100vh;
+  }
+  .artist-hero-section {
+    display: flex;
+    align-content: center;
+    margin-top: 2em;
+  }
+
+  #artist-page-text {
+    text-align: center;
+    margin-top: 6em;
+    justify-content: center;
+    align-content: center;
+  }
+  #artist-page-image {
+    height: 80%;
+    width: 80%;
+    margin-top: 5em;
+  }
+
+  #artist-page-name {
+    text-align: center;
+    padding: 2em;
+  }
+
+  #track-name {
+    text-decoration: bold;
+    text-size-adjust: 1em;
+  }
+  #top-tracks-table {
+    margin-top: 2em;
+    padding: 0 2em;
+    
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  th, td {
+    border-bottom: 2px solid white;
+  }
+  
+
+  tr:hover {
+    background-color: grey;
+  }
+
+  th { 
+    background-color: rgba(255, 255, 255, .25);
+  }

@@ -19,8 +19,6 @@ let client_id = '54635d60699e4c52b9e9bc6aacdd842f'; // Your client id
 let client_secret = '5da9b7f78a404720a9420d7f04415e9c'; // Your secret
 let redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
 let userId = ""; //user ID that we get back
-let access_token = "";
-let refresh_token = "";
 let artistPage = false;
 let searchResults = [];
 let artistInfo = [];
@@ -69,15 +67,10 @@ function AlbumSearch(albumName, artistName, albumImageUrl, albumUri, artistId){
   this.artistId = artistId
 }
 
-//blueprint for seaching for an artist
-// function ArtistSearch(artistName, artistId, artistImageUrl) {
-//   this.artistName = artistName,
-//   this.artistId = artistId, 
-//   this.artistImageUrl = artistImageUrl
-// } 
-function ArtistSearch(artistName, artistId) {
+function ArtistSearch(artistName, artistId, artistImage) {
   this.artistName = artistName,
-  this.artistId = artistId
+  this.artistId = artistId,
+  this.artistImage = artistImage
 }
 
 function ArtistTopTracks(trackName, albumName){
@@ -94,9 +87,7 @@ function ArtistDetails(followers, genres, popularity, artistName, image, id){
   this.id = id
 }
 
-//Here we are requesting authorization from the /authorize route as per the spotify documentation
-app.get('/login', function(req, res) {
-  
+const requestAuthorization = (res) => {
   var state = generateRandomString(16);
   res.cookie(stateKey, state);
   
@@ -110,15 +101,43 @@ app.get('/login', function(req, res) {
     redirect_uri: redirect_uri, //required, uri to redirect to once the user grants or denies permissions
     state: state //optional, but stongly recommended for security reasons
   }));
+}
+
+const refreshToken = (res) => {
+  const refresh_token = app.get('refresh_token');
+
+  var authOptions = {
+    url: 'https://accounts.spotify.com/api/token',
+    headers: { 'Authorization': 'Basic ' + (Buffer (client_id + ':' + client_secret).toString('base64')) },
+    form: {
+      grant_type: 'refresh_token',
+      refresh_token: refresh_token
+    },
+    json: true
+  };
+    request.post(authOptions, function(error, response, body) {
+    if (!error && response.statusCode === 200) {
+
+      var access_token = body.access_token;
+      console.log(`the new access token is ${access_token}`)
+    }
+  });
+}
+//Here we are requesting authorization from the /authorize route as per the spotify documentation
+app.get('/login', function(req, res) {
+  requestAuthorization(res);
 });
 
 // your application requests refresh and access tokens
 // after checking the state parameter
 app.get('/callback', function(req, res) {
   
-  var code = req.query.code || null;
-  var state = req.query.state || null;
-  var storedState = req.cookies ? req.cookies[stateKey] : null;
+  let code = req.query.code || null;
+  let state = req.query.state || null;
+
+  console.log(`Auth code is = ${code}`)
+
+  let storedState = req.cookies ? req.cookies[stateKey] : null;
   
   if (state === null || state !== storedState) {
     res.redirect('/#' +
@@ -127,7 +146,7 @@ app.get('/callback', function(req, res) {
     }));
   } else {
     res.clearCookie(stateKey);
-    var authOptions = {
+    let authOptions = {
       url: 'https://accounts.spotify.com/api/token',
       form: {
         code: code,
@@ -135,7 +154,7 @@ app.get('/callback', function(req, res) {
         grant_type: 'authorization_code'
       },
       headers: {
-        'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64'))
+        'Authorization': 'Basic ' + (new Buffer(`${client_id}:${client_secret}`).toString('base64'))
       },
       json: true
     };
@@ -143,10 +162,13 @@ app.get('/callback', function(req, res) {
     request.post(authOptions, function(error, response, body) {
       if (!error && response.statusCode === 200) {
         
-        access_token = body.access_token,
-        refresh_token = body.refresh_token;
+        let access_token = body.access_token
+        let refresh_token = body.refresh_token
         
-        var options = {
+        app.set('access_token', access_token);
+        app.set('refresh_token', refresh_token);
+
+        let options = {
           url: 'https://api.spotify.com/v1/me',
           headers: { 'Authorization': 'Bearer ' + access_token },
           json: true
@@ -173,28 +195,11 @@ app.get('/callback', function(req, res) {
   }
 });
 
+
 app.get('/refresh_token', function(req, res) {
   
-  // requesting access token from refresh token
-  var refresh_token = req.query.refresh_token;
-  var authOptions = {
-    url: 'https://accounts.spotify.com/api/token',
-    headers: { 'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64')) },
-    form: {
-      grant_type: 'refresh_token',
-      refresh_token: refresh_token
-    },
-    json: true
-  };
-  
-  request.post(authOptions, function(error, response, body) {
-    if (!error && response.statusCode === 200) {
-      var access_token = body.access_token;
-      res.send({
-        'access_token': access_token
-      });
-    }
-  });
+  refreshToken(res);
+  res.redirect('/'); 
 });
 
 app.get('/', function(req, res){
@@ -203,23 +208,31 @@ app.get('/', function(req, res){
   artistInfo = [];
   topTracks = [];
   artistPage = false;
-
   res.render("index", {});
 });
 
 app.post("/", function(req, res){ 
-  
+
   const userQueryWithoutProperFormatting = req.body.searchName; //user search entry on the home page
   const userQuery = userQueryWithoutProperFormatting.replace(/\s/g, '+'); //as per spotify documentation
   const searchType = req.body.selectpicker; // track/album/artist
   const arrayOfObjectsFromSpotify = []; //store data that we get back
 
-  console.log("Access Token: " + access_token);
+  const refresh_token = app.get('refresh_token');
+  const access_token = app.get('access_token');
+  console.log(`the original access token was ${access_token}`)
+  console.log(`the original refresh token was ${refresh_token}`)
+  const urlString = `https://api.spotify.com/v1/search?access_token=${access_token}&q=${userQuery}&type=${searchType}&limit=12`; //the search URL
   
-  const urlString = "https://api.spotify.com/v1/search?access_token=" + access_token + "&q=" + userQuery + "&type=" + searchType + "&limit=12"; //the search URL
-
   https.get(urlString, function(response){
     
+    console.log(response.statusCode);
+    
+    if (response.statusCode == 401){
+      res.redirect('/refresh_token');
+      return
+    }
+
     if (searchType == "track") { 
       
       response.on("data", function(chunk){ 
@@ -265,7 +278,6 @@ app.post("/", function(req, res){
       response.on('end', function(){
         const data = Buffer.concat(arrayOfObjectsFromSpotify);
         var albumData = JSON.parse(data)
-        //console.log(albumData.albums.items);
         
         for (let i=0; i < albumData.albums.items.length; i++){
           
@@ -276,12 +288,9 @@ app.post("/", function(req, res){
 
           const albumUriPath = albumData.albums.items[0].uri;
           const albumUri = albumUriPath.substring(14);
-          
-          console.log("Album URI : " + albumUri);
 
           let result = new AlbumSearch(albumName, artistName, albumImageUrl, albumUri, artistId)
           searchResults.push(result);
-          console.log(userQuery);
         }
         
         res.render("result", 
@@ -297,23 +306,23 @@ app.post("/", function(req, res){
       artistPage = true;
       
       response.on("data",function(chunk){ 
-        arrayOfObjectsFromSpotify.push(chunk)
+        arrayOfObjectsFromSpotify.push(chunk);
       })
       
       response.on("end",function(){
         const data = Buffer.concat(arrayOfObjectsFromSpotify);
         var artistData = JSON.parse(data);
-        //console.log(artistData)
+    
         for (var i = 0; i < artistData.artists.items.length; i++) {
           
           const artistName = artistData.artists.items[i].name
           const artistId = artistData.artists.items[i].id
-          const artistImageUrl = artistData.artists.items[i].images //! Not working for some reason, cannot get ahold of the URL proerty.
+          const artistImage = artistData.artists.items[i].images[0].url
+          console.log(artistImage)
           
-          
-          //let result = new ArtistSearch(artistName, artistId, artistImageUrl)
-          let result = new ArtistSearch(artistName, artistId)
+          let result = new ArtistSearch(artistName, artistId, artistImage)
           searchResults.push(result);
+          console.log(searchResults);
         }
         
         res.render("result",{searchResults:searchResults, artistPage:artistPage});
@@ -327,16 +336,11 @@ app.get('/album/:uri', function(req, res){
   
   const requestedUri = req.params.uri;
   
-  console.log(searchResults);
-  console.log("requested URI = " + requestedUri);
-  
   for (var i = 0; i < searchResults.length; i++){
-    console.log(searchResults[i].albumUri)
     if (requestedUri == searchResults[i].albumUri){
       res.render('play', {searchResults:searchResults, i:i})
     }
   }
-  
 });
 
 app.get('/artist/:id', function(req, res){
@@ -351,12 +355,12 @@ app.get('/artist/:id', function(req, res){
   let trackName;
   let id;
   
+  const access_token = app.get('access_token');
   const requestedId = req.params.id
-  console.log("requested ID = " + requestedId);
-  const topTrackUrl = "https://api.spotify.com/v1/artists/" + requestedId + "/top-tracks?market=MA&access_token=" + access_token
+  const topTrackUrl = `https://api.spotify.com/v1/artists/${requestedId}/top-tracks?market=MA&access_token=${access_token}`
   const topTrackData = [];
   
-  const artistDetailsUrl = "https://api.spotify.com/v1/artists/" + requestedId + "?access_token=" + access_token
+  const artistDetailsUrl = `https://api.spotify.com/v1/artists/${requestedId}?access_token=${access_token}`
   const artistData = [];
   //probably need to render after we do the next get request
   //res.render("artist", {searchResults:searchResults})
@@ -386,7 +390,6 @@ app.get('/artist/:id', function(req, res){
         })
         response.on('end', function(){
           const dataBack = JSON.parse(Buffer.concat(topTrackData));
-          console.log("requested ID 2 = " + requestedId)
           
           for (var i = 0; i<dataBack.tracks.length; i++){ 
             trackName = dataBack.tracks[i].name;
@@ -410,3 +413,6 @@ app.get('/artist/:id', function(req, res){
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}/login`)
 });
+
+
+

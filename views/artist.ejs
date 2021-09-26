@@ -1,16 +1,32 @@
 <%- include("partials/header"); -%>
 
-<body>    
-    
-    <h1 id="search-results-h2"><%=artistInfo[index].artistName%></h1>
+<body id="artist-page-body">  
+    <div class="artist-hero-section">  
+        <div class="text-container" id="artist-page-text">
+            <h1 id="artist-page-name"><%=artistInfo[index].artistName%></h1>
+            <!-- <p><span><%=artistInfo[index].followers%></span> Currently following</p> -->
 
-        <div class="artist-hero-section">
-            <img src="<%=artistInfo[index].image.url%>" alt="">
-            <h1><span><%=artistInfo[index].followers%></span> Currently following</h1>
-
-            <% topTracks.forEach(function(track){ %>
-                <p><%=track.trackName%>, <%=track.albumName%></p>
-            <% }) %>
         </div>
+    <div class="">
+        <img class=".img-fluid rounded float-end" id="artist-page-image" src="<%=artistInfo[index].image.url%>" alt="">
+    </div>
+ </div>
+ <h2><%=artistInfo[index].artistName%>'s Top Tracks</h2>
+    <table class="table table-light table-responsive" id="top-tracks-table">
+        <tr>
+            <th>Track</th>
+            <th>Album</th>
+        </tr>
+        <% for (let i=0; i < topTracks.length; i++){ %>
+            <tr>
+                <td><%=topTracks[i].trackName%></td>
+                <td><%=topTracks[i].albumName%></td>
+            </tr>
+        <%}%>
+    </table>
+ <!-- <% topTracks.forEach(function(track){ %>
+    <p><span id="track-name"><%=track.trackName%></span>, <span id="album-name"><%=track.albumName%></span></p>
+<% }) %> -->
+
   </body>
 </html>
