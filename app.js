@@ -1,24 +1,19 @@
-const express = require('express'); //Express web server framework
-const request = require('request'); //"Request" library
-const querystring = require('querystring');  //"Request" library
+const express = require('express'); 
+const request = require('request'); 
+const querystring = require('querystring');  
 const https = require('https');
 var cookieParser = require('cookie-parser');
 var cors = require('cors');
-const { json } = require('body-parser');
-const { error } = require('console');
-const fs = require('fs');
-const { restart } = require('nodemon');
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const _ = require("lodash");
-const { post } = require('request');
-const { timingSafeEqual } = require('crypto');
-const { result } = require('lodash');
+const { TrackSearch, AlbumSearch, ArtistSearch, ArtistTopTracks, ArtistDetails } = require("./src/model")
+const { generateRandomString } = require("./src/controller");
+const { access } = require('fs/promises');
 
 let client_id = '54635d60699e4c52b9e9bc6aacdd842f'; // Your client id
 let client_secret = '5da9b7f78a404720a9420d7f04415e9c'; // Your secret
 let redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
-let userId = ""; //user ID that we get back
 let artistPage = false;
 let searchResults = [];
 let artistInfo = [];
@@ -36,58 +31,8 @@ app.use(express.static(__dirname + '/public'))
 
 app.set('view engine', 'ejs');
 
-//this function is used in the 'state' parameter of the object used when we are trying to auth for security purposes
-var generateRandomString = function(length) {
-  var text = '';
-  var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  
-  for (var i = 0; i < length; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
-};
-
-//blueprint for searching for a track
-function TrackSearch(trackName, artistName, albumName, albumImageUrl, albumUri, trackUri, artistId){ 
-  this.trackName = trackName,
-  this.artistName = artistName,
-  this.albumName = albumName,
-  this.albumImageUrl = albumImageUrl,
-  this.albumUri = albumUri,
-  this.trackUri = trackUri,
-  this.artistId = artistId
-}
-
-//blueprint for searching for an album
-function AlbumSearch(albumName, artistName, albumImageUrl, albumUri, artistId){ 
-  this.albumName = albumName,
-  this.artistName = artistName,
-  this.albumImageUrl = albumImageUrl,
-  this.albumUri = albumUri,
-  this.artistId = artistId
-}
-
-function ArtistSearch(artistName, artistId, artistImage) {
-  this.artistName = artistName,
-  this.artistId = artistId,
-  this.artistImage = artistImage
-}
-
-function ArtistTopTracks(trackName, albumName){
-  this.trackName = trackName, 
-  this.albumName = albumName
-}
-
-function ArtistDetails(followers, genres, popularity, artistName, image, id){
-  this.followers = followers,
-  this.genres = genres,
-  this.popularity = popularity,
-  this.artistName = artistName, 
-  this.image = image,
-  this.id = id
-}
-
-const requestAuthorization = (res) => {
+//Here we are requesting authorization from the /authorize route as per the spotify documentation
+app.get('/login', function(req, res) {
   var state = generateRandomString(16);
   res.cookie(stateKey, state);
   
@@ -101,31 +46,6 @@ const requestAuthorization = (res) => {
     redirect_uri: redirect_uri, //required, uri to redirect to once the user grants or denies permissions
     state: state //optional, but stongly recommended for security reasons
   }));
-}
-
-const refreshToken = (res) => {
-  const refresh_token = app.get('refresh_token');
-
-  var authOptions = {
-    url: 'https://accounts.spotify.com/api/token',
-    headers: { 'Authorization': 'Basic ' + (Buffer (client_id + ':' + client_secret).toString('base64')) },
-    form: {
-      grant_type: 'refresh_token',
-      refresh_token: refresh_token
-    },
-    json: true
-  };
-    request.post(authOptions, function(error, response, body) {
-    if (!error && response.statusCode === 200) {
-
-      var access_token = body.access_token;
-      console.log(`the new access token is ${access_token}`)
-    }
-  });
-}
-//Here we are requesting authorization from the /authorize route as per the spotify documentation
-app.get('/login', function(req, res) {
-  requestAuthorization(res);
 });
 
 // your application requests refresh and access tokens
@@ -134,9 +54,6 @@ app.get('/callback', function(req, res) {
   
   let code = req.query.code || null;
   let state = req.query.state || null;
-
-  console.log(`Auth code is = ${code}`)
-
   let storedState = req.cookies ? req.cookies[stateKey] : null;
   
   if (state === null || state !== storedState) {
@@ -195,11 +112,24 @@ app.get('/callback', function(req, res) {
   }
 });
 
-
 app.get('/refresh_token', function(req, res) {
-  
-  refreshToken(res);
-  res.redirect('/'); 
+  const refresh_token = app.get('refresh_token');
+  var authOptions = {
+    url: 'https://accounts.spotify.com/api/token',
+    headers: { 'Authorization': 'Basic ' + (Buffer (client_id + ':' + client_secret).toString('base64')) },
+    form: {
+      grant_type: 'refresh_token',
+      refresh_token: refresh_token
+    },
+    json: true
+  };
+    request.post(authOptions, function(error, response, body) {
+    if (!error && response.statusCode === 200) {
+      const newAccessToken = response.body.access_token
+      app.set('access_token', newAccessToken)
+      console.log(newAccessToken)
+    }
+  });
 });
 
 app.get('/', function(req, res){
@@ -220,18 +150,12 @@ app.post("/", function(req, res){
 
   const refresh_token = app.get('refresh_token');
   const access_token = app.get('access_token');
-  console.log(`the original access token was ${access_token}`)
-  console.log(`the original refresh token was ${refresh_token}`)
+
   const urlString = `https://api.spotify.com/v1/search?access_token=${access_token}&q=${userQuery}&type=${searchType}&limit=12`; //the search URL
   
   https.get(urlString, function(response){
     
     console.log(response.statusCode);
-    
-    if (response.statusCode == 401){
-      res.redirect('/refresh_token');
-      return
-    }
 
     if (searchType == "track") { 
       
@@ -312,19 +236,21 @@ app.post("/", function(req, res){
       response.on("end",function(){
         const data = Buffer.concat(arrayOfObjectsFromSpotify);
         var artistData = JSON.parse(data);
-    
-        for (var i = 0; i < artistData.artists.items.length; i++) {
-          
-          const artistName = artistData.artists.items[i].name
-          const artistId = artistData.artists.items[i].id
-          const artistImage = artistData.artists.items[i].images[0].url
-          console.log(artistImage)
-          
-          let result = new ArtistSearch(artistName, artistId, artistImage)
-          searchResults.push(result);
-          console.log(searchResults);
-        }
+        // console.log(data)
+        console.log(artistData.artists.items)
         
+          for (var i = 0; i < artistData.artists.items.length-1; i++) {
+            let artistImage = ""
+            const artistName = artistData.artists.items[i].name
+            const artistId = artistData.artists.items[i].id
+            if (artistData.artists.items[i].images.length > 0) {
+              artistImage = artistData.artists.items[i].images[0].url
+            }
+      
+            let result = new ArtistSearch(artistName, artistId, artistImage)
+            searchResults.push(result);
+            
+          }
         res.render("result",{searchResults:searchResults, artistPage:artistPage});
       })
     }
