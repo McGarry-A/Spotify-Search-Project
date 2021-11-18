@@ -7,3 +7,7 @@ exports.generateRandomString = (length) => {
     }
     return text;
   };
+
+exports.login = (res, req, next) => {
+
+}

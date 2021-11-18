@@ -9,16 +9,15 @@ const ejs = require("ejs");
 const _ = require("lodash");
 const { TrackSearch, AlbumSearch, ArtistSearch, ArtistTopTracks, ArtistDetails } = require("./src/model")
 const { generateRandomString } = require("./src/controller");
-const { access } = require('fs/promises');
+require("dotenv").config()
 
-let client_id = '54635d60699e4c52b9e9bc6aacdd842f'; // Your client id
-let client_secret = '5da9b7f78a404720a9420d7f04415e9c'; // Your secret
+let client_id = process.env.client_id
+let client_secret = process.env.client_secret
 let redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
 let artistPage = false;
 let searchResults = [];
 let artistInfo = [];
 let topTracks = [];
-
 const port = 8888;
 const app = express();
 
@@ -81,6 +80,7 @@ app.get('/callback', function(req, res) {
         
         let access_token = body.access_token
         let refresh_token = body.refresh_token
+        console.log(`first access token is: ${access_token}`)
         
         app.set('access_token', access_token);
         app.set('refresh_token', refresh_token);
@@ -126,6 +126,7 @@ app.get('/refresh_token', function(req, res) {
     request.post(authOptions, function(error, response, body) {
     if (!error && response.statusCode === 200) {
       const newAccessToken = response.body.access_token
+      console.log(`new access token is ${newAccessToken}`)
       app.set('access_token', newAccessToken)
       console.log(newAccessToken)
     }
@@ -138,6 +139,8 @@ app.get('/', function(req, res){
   artistInfo = [];
   topTracks = [];
   artistPage = false;
+  const refresh_token = app.get('refresh_token');
+  const access_token = app.get('access_token');
   res.render("index", {});
 });
 
@@ -153,14 +156,20 @@ app.post("/", function(req, res){
 
   const urlString = `https://api.spotify.com/v1/search?access_token=${access_token}&q=${userQuery}&type=${searchType}&limit=12`; //the search URL
   
+  if (userQuery === "") {
+    console.log(`please enter a valid search term`)
+  }
+
   https.get(urlString, function(response){
     
-    console.log(response.statusCode);
+    if (response.statusCode === 401) {
+      console.log(`redirecting to refresh the token`)
+      res.redirect(`/refresh_token`)
+    }
 
     if (searchType == "track") { 
       
       response.on("data", function(chunk){ 
-        
         arrayOfObjectsFromSpotify.push(chunk);
       })
       
@@ -236,8 +245,6 @@ app.post("/", function(req, res){
       response.on("end",function(){
         const data = Buffer.concat(arrayOfObjectsFromSpotify);
         var artistData = JSON.parse(data);
-        // console.log(data)
-        console.log(artistData.artists.items)
         
           for (var i = 0; i < artistData.artists.items.length-1; i++) {
             let artistImage = ""
