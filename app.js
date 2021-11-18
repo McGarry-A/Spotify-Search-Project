@@ -97,7 +97,7 @@ app.get('/callback', function(req, res) {
         });
         
         // we can also pass the token to the browser to make requests from there
-        res.redirect('/#' +
+        res.redirect('/index/#' +
         querystring.stringify({
           access_token: access_token,
           refresh_token: refresh_token
@@ -132,8 +132,11 @@ app.get('/refresh_token', function(req, res) {
     }
   });
 });
+app.get(`/`, (req,res)=> {
+  res.render("home", {});
+})
 
-app.get('/', function(req, res){
+app.get('/index', function(req, res){
   
   searchResults = [];
   artistInfo = [];
@@ -144,7 +147,7 @@ app.get('/', function(req, res){
   res.render("index", {});
 });
 
-app.post("/", function(req, res){ 
+app.post("/index", function(req, res){ 
 
   const userQueryWithoutProperFormatting = req.body.searchName; //user search entry on the home page
   const userQuery = userQueryWithoutProperFormatting.replace(/\s/g, '+'); //as per spotify documentation
@@ -153,6 +156,8 @@ app.post("/", function(req, res){
 
   const refresh_token = app.get('refresh_token');
   const access_token = app.get('access_token');
+  console.log(access_token)
+  console.log(refresh_token)
 
   const urlString = `https://api.spotify.com/v1/search?access_token=${access_token}&q=${userQuery}&type=${searchType}&limit=12`; //the search URL
   
@@ -344,7 +349,7 @@ app.get('/artist/:id', function(req, res){
 });
 
 app.listen(port, () => {
-  console.log(`Example app listening at http://localhost:${port}/login`)
+  console.log(`Example app listening at http://localhost:${port}/`)
 });
 
 
